@@ -21,7 +21,7 @@
     ];
 
     $insert_multiple_params = [];
-    for($i = 0; $i < 300000; $i++){
+    for($i = 0; $i < 30; $i++){
         $insert_multiple_params[] = $insert_params;
     }
 
@@ -48,12 +48,23 @@
         'ip' => '246.90.125.89',
         'port' => 1283,
     ];
-
+    $select_operators = [
+        'ip' => '=',
+        'port' => '=',
+    ];
+    $update_operators = [
+        'ip' => '=',
+        'port' => '=',
+    ];
     // delete record
     $delete_params = [
         'ip' => '1.1.1.1',
         'port' => 1111,
     ];
+    $delete_operators = [
+        'ip' => '=',
+        'port' => '>=',
+    ]; 
 
     $join = [
         [
@@ -67,19 +78,19 @@
     ];
 
     $start_update = microtime(1);
-    $update = $database->__update($t,$update_params,$where_params);
+    $update = $database->__update($t,$update_params,$where_params,$update_operators);
     echo "time update(): ".(microtime(1) - $start_update)."[s]\n";
 
     $start_delete = microtime(1);
-    $delete = $database->__delete($t,$delete_params);
+    $delete = $database->__delete($t,$delete_params,$delete_operators);
     echo "time delete(): ".(microtime(1) - $start_delete)."[s]\n";
 
     $start_insert = microtime(1);
-    $insert = $database->__insert($t,$insert_multiple_params,$where_params);
+    $insert = $database->__insert($t,$insert_multiple_params,$where_params,$select_operators);
     echo "time insert(): ".(microtime(1) - $start_insert)."[s]\n";
 
     $start_select = microtime(1);
-    $select = $database->__select($table=$join[0]['table2']);
+    $select = $database->__select($table=$join[0]['table2'],$where_params,$select_operators,$join);
     echo "time select(): ".(microtime(1) - $start_select)."[s]\n";
 
     echo "update: \n";

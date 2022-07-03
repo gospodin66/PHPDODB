@@ -71,8 +71,11 @@ class Database extends Filter {
      * 
      * @return array => array of matching records
      */
-    public function __select(string $table, array $params = [], array $join = [], int $limit = 0) : array { 
+    public function __select(string $table, array $params = [], array $operators = [], array $join = [], int $limit = 0) : array { 
         if(!empty($params)){
+			if(count($params) !== count($operators)){
+				return [];
+			}
             $params_opts = $this->__initialize_opts($params);
             if(empty($params_opts)){
                 return [];
@@ -83,13 +86,15 @@ class Database extends Filter {
                     return [];
                 }
             } 
-        }
+        }		
+		
+
 
         $limit = is_numeric($limit) ? intval($limit) : 0;
         $table = filter_var($table, FILTER_UNSAFE_RAW);
         $select_params = '';
 
-        if( ! empty($params)){
+        if( ! empty($params) && ! empty($operators)){
             $params_opts_copy = $params_opts;
             $opt_last = count($params_opts) -1;
             /**
@@ -99,8 +104,7 @@ class Database extends Filter {
                 foreach($params_opts as $_k => $opt){
                     if($k === $opt['param']){
                         unset($params_opts[$_k]);
-                        $select_params .= $opt['param'].'=:'.$opt['param'].
-                                         ($_k !== $opt_last ? ' AND ' : '');
+                        $select_params .= "{$opt['param']}{$operators[$k]}:{$opt['param']}".($_k !== $opt_last ? ' AND ' : '');
                         break;
                     }
                 }
@@ -111,7 +115,7 @@ class Database extends Filter {
 
         $sql = "SELECT * FROM $table"
                 .($joinstr ?? '')
-                .(!empty($select_params) ? " WHERE $select_params" : '')
+                .( ! empty($select_params) ? " WHERE $select_params" : '')
                 .($limit > 1 ? " LIMIT {$limit}" : '');
 
         /**
@@ -145,14 +149,14 @@ class Database extends Filter {
      * 
      * @return successful => number of successful inserts
      */
-    public function __insert(string $table, array $params, array $rcp = []) : int {
+    public function __insert(string $table, array $params, array $rcp = [], array $rcp_operators = []) : int {
 
         $successful = 0;
         
         /**
          * - if params contains arrays of params => multiple inserts
          */
-        if(isset($params[0]) && is_array($params[0]) && is_numeric(key($params))){
+        if(isset($params[0]) && is_array($params[0])){
 
             $vals_arr = $vals = [];
             
@@ -240,11 +244,11 @@ class Database extends Filter {
             $vals_query = " VALUES($vals)";
         }
     
-        if(!empty($rcp)){
+        if( ! empty($rcp) && ! empty($rcp_operators)){
 
-            $existing_record = $this->__select($table, $rcp);
+            $existing_record = $this->__select($table, $rcp, $rcp_operators);
 
-            if(!empty($existing_record)){
+            if( ! empty($existing_record)){
                 echo "Record already exists\n";
                 print_r($existing_record);
                 $this->clear_pdo_stmt();
@@ -291,7 +295,7 @@ class Database extends Filter {
      * 
      * @return int => num of affected rows
      */
-    public function __update(string $table, array $params, array $wqp = [], int $limit = 0) : int {
+    public function __update(string $table, array $params, array $wqp = [], array $wqp_operators = [], int $limit = 0) : int {
 
         $params_opts = $this->__initialize_opts($params);
         if(empty($params_opts)){
@@ -303,7 +307,7 @@ class Database extends Filter {
             return false;
         } 
 
-        if(!empty($wqp)){
+        if( ! empty($wqp) && ! empty($wqp_operators)){
 
             $wqp_opts = $this->__initialize_opts($wqp);
             if(empty($wqp_opts)){
@@ -321,7 +325,7 @@ class Database extends Filter {
             /** use underscore '_' to differentiate same keys */
             foreach($wqp as $k => $w){
                 $numeric_k = array_search($k, array_keys($wqp));
-                $str_wqp .= "{$k}=:_{$k}".($numeric_k !== $w_last ? ' AND ' : '');
+                $str_wqp .= "{$k}{$wqp_operators[$k]}:_{$k}".($numeric_k !== $w_last ? ' AND ' : '');
             }
 
         }
@@ -391,7 +395,11 @@ class Database extends Filter {
      * 
      * @return int => num of affected rows
      */
-    public function __delete(string $table, array $params) : int {
+    public function __delete(string $table, array $params, array $operators) : int {
+		
+		if(count($params) !== count($operators)){
+			return false;
+		}
         if(!empty($params) && ($params_opts = $this->__initialize_opts($params)) === false){
             return false;
         }
@@ -407,7 +415,7 @@ class Database extends Filter {
             foreach($params_opts as $opt){
                 if($k === $opt['param']){
                     $numeric_k = array_search($k, array_keys($params));
-                    $del_params .= "$k=:$k".($numeric_k !== $opts_last ? ' AND ' : '');
+                    $del_params .= "$k{$operators[$k]}:$k".($numeric_k !== $opts_last ? ' AND ' : '');
                     break;
                 }
             }
