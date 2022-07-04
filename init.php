@@ -21,7 +21,7 @@
     ];
 
     $insert_multiple_params = [];
-    for($i = 0; $i < 30; $i++){
+    for($i = 0; $i < 400000; $i++){
         $insert_multiple_params[] = $insert_params;
     }
 

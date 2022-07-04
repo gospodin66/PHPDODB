@@ -17,6 +17,7 @@ class Database extends Filter {
     private static string $dsn;
 
     private const BCRYPT_COST = 10;
+    private const PASSWORD_POSSIBLE_COLUMNS = ['password','pass','passwd','pwd'];
 
     private $stmt;
     private $pdo;
@@ -73,9 +74,9 @@ class Database extends Filter {
      */
     public function __select(string $table, array $params = [], array $operators = [], array $join = [], int $limit = 0) : array { 
         if(!empty($params)){
-			if(count($params) !== count($operators)){
-				return [];
-			}
+            if(count($params) !== count($operators)){
+                return [];
+            }
             $params_opts = $this->__initialize_opts($params);
             if(empty($params_opts)){
                 return [];
@@ -86,9 +87,7 @@ class Database extends Filter {
                     return [];
                 }
             } 
-        }		
-		
-
+        }
 
         $limit = is_numeric($limit) ? intval($limit) : 0;
         $table = filter_var($table, FILTER_UNSAFE_RAW);
@@ -267,17 +266,22 @@ class Database extends Filter {
         }
 
         try {
+            /* Begin a transaction, turning off autocommit */
+            $this->pdo->beginTransaction();
             $this->stmt = $this->pdo->prepare($sql);
             $this->bind_params($params, $params_opts);
             $res = $this->stmt->execute();
             if($res){
                 $successful = (isset($params[0]) && is_array($params[0])) ? count($params) : 1;
             }
+            /* Commit the changes */
+            $this->pdo->commit();
 
         } catch (PDOException $e) {
             echo "Database error [{$e->getCode()}]: insert failed\n".
                           "err msg: {$e->getMessage()} on line: {$e->getLine()}\n".
                           "stack trace: {$e->getTraceAsString()}\n\n";
+            $this->rollback_transaction();
             $this->clear_pdo_stmt();
             return 0;
         }
@@ -285,7 +289,6 @@ class Database extends Filter {
         $this->stmt = null;
         return $successful;
     }
-
 
     /**
      * @param table  => table to select from
@@ -352,11 +355,12 @@ class Database extends Filter {
         }
 
         try {
+            /* Begin a transaction, turning off autocommit */
+            $this->pdo->beginTransaction();
             $this->stmt = $this->pdo->prepare($sql);
 
             if( ! empty($wqp) && ! empty($wqp_opts)){
                 $_wqp = [];
-
                 foreach($wqp as $k => $wqparam){
                     $_wqp[":_{$k}"] = $wqp[$k];
                     unset($wqp[$k]);
@@ -365,22 +369,24 @@ class Database extends Filter {
                     $wqopt['param'] = ':_'.$wqopt['param'];
                 }
                 unset($wqopt);
-
                 $this->bind_params(array_merge($params, $_wqp), array_merge($params_opts, $wqp_opts));
             } else {
                 $this->bind_params($params, $params_opts);
             }
 
             $res = $this->stmt->execute();
-
             if($res){ 
                 $ret_rows = $this->stmt->rowCount();
             }
+
+            /* Commit the changes */
+            $this->pdo->commit();
             
         } catch (PDOException $e) {
             echo "Database error [{$e->getCode()}]: update failed\n".
                           "err msg: {$e->getMessage()} on line: {$e->getLine()}\n".
                           "stack trace: {$e->getTraceAsString()}\n\n";
+            $this->rollback_transaction();
             $this->clear_pdo_stmt();
             return false;
         }
@@ -396,10 +402,10 @@ class Database extends Filter {
      * @return int => num of affected rows
      */
     public function __delete(string $table, array $params, array $operators) : int {
-		
-		if(count($params) !== count($operators)){
-			return false;
-		}
+        
+        if(count($params) !== count($operators)){
+            return false;
+        }
         if(!empty($params) && ($params_opts = $this->__initialize_opts($params)) === false){
             return false;
         }
@@ -432,6 +438,9 @@ class Database extends Filter {
         }
 
         try {
+            /**  Begin a transaction, turning off autocommit */
+            $this->pdo->beginTransaction();
+            
             $this->stmt = $this->pdo->prepare($sql);
             $this->bind_params($params, $params_opts);
             $res = $this->stmt->execute();
@@ -439,10 +448,13 @@ class Database extends Filter {
                 $ret_rows = $this->stmt->rowCount();
             }
 
+            /* Commit the changes */
+            $this->pdo->commit();
         } catch (PDOException $e) {
             echo "Database error [{$e->getCode()}]: delete failed\n".
                           "err msg: {$e->getMessage()} on line: {$e->getLine()}\n".
                           "stack trace: {$e->getTraceAsString()}\n\n";
+            $this->rollback_transaction();
             $this->clear_pdo_stmt();
             return false;
         }
@@ -466,11 +478,11 @@ class Database extends Filter {
                 $keys = array_keys($j);
                 foreach($keys as $key){ $f[$key] = FILTER_UNSAFE_RAW; }
                 $j = filter_var_array($j, $f);
-                $joinstr .= (!empty($j['type']) ? ' '.strtoupper($j['type']).' ' : ' ')
-                            .'JOIN '.$j['table1'].' ON '
-                            .$j['table1'].'.'.$j['param1']
-                            .$j['operator']
-                            .$j['table2'].'.'.$j['param2'];
+                $joinstr .= (!empty($j['type']) ? ' '.strtoupper($j['type']).' ' : ' ').
+                            "JOIN {$j['table1']} ON ".
+                            "{$j['table1']}.{$j['param1']}".
+                            "{$j['operator']}".
+                            "{$j['table2']}.{$j['param2']}";
             }
             unset($j);
         }
@@ -502,12 +514,12 @@ class Database extends Filter {
 
     /**
      * => helper fnc
-	 * 
-	 * @return void
+     * 
+     * @return void
      */
     private function loop_bind_params(array $params, array $params_opts) : void {
         foreach($params as $param_name => &$param){
-            if($param_name === 'password' || $param_name === 'pass' || $param_name === 'pwd' || $param_name === 'passwd'){
+            if(in_array($param_name, self::PASSWORD_POSSIBLE_COLUMNS)){
                 $hashed_pass = password_hash($param, PASSWORD_BCRYPT, ["cost" => self::BCRYPT_COST]);
                 $this->stmt->bindParam(":{$param_name}", $hashed_pass, PDO::PARAM_STR);
                 unset($params[$param_name]);
@@ -521,6 +533,18 @@ class Database extends Filter {
             }
         }
     }
+
+
+    /**
+     * 
+     * => rollbacks a transaction
+     * 
+     * @return void
+     */
+    private function rollback_transaction() : bool {
+        return $this->pdo->rollback();
+    }
+
 
     /**
      * => clears pdo and stmt objects
