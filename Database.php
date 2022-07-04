@@ -274,8 +274,13 @@ class Database extends Filter {
             if($res){
                 $successful = (isset($params[0]) && is_array($params[0])) ? count($params) : 1;
             }
+
             /* Commit the changes */
-            $this->pdo->commit();
+            if( ! $this->pdo->commit()){
+                echo "Error on commiting insert transaction\nExecuting rollback";
+                $this->rollback_transaction();
+                return 0;
+            }
 
         } catch (PDOException $e) {
             echo "Database error [{$e->getCode()}]: insert failed\n".
@@ -302,24 +307,24 @@ class Database extends Filter {
 
         $params_opts = $this->__initialize_opts($params);
         if(empty($params_opts)){
-            return false;
+            return 0;
         }
 
         $params = $this->__filter_vars($params, $params_opts[0]);
         if(empty($params)){
-            return false;
+            return 0;
         } 
 
         if( ! empty($wqp) && ! empty($wqp_operators)){
 
             $wqp_opts = $this->__initialize_opts($wqp);
             if(empty($wqp_opts)){
-                return false;
+                return 0;
             }
 
             $wqp = $this->__filter_vars($wqp, $wqp_opts);
             if(empty($wqp)){
-                return false;
+                return 0;
             }
 
             $w_last = count($wqp) -1;
@@ -380,7 +385,11 @@ class Database extends Filter {
             }
 
             /* Commit the changes */
-            $this->pdo->commit();
+            if( ! $this->pdo->commit()){
+                echo "Error on commiting update transaction\nExecuting rollback";
+                $this->rollback_transaction();
+                return 0;
+            }
             
         } catch (PDOException $e) {
             echo "Database error [{$e->getCode()}]: update failed\n".
@@ -388,7 +397,7 @@ class Database extends Filter {
                           "stack trace: {$e->getTraceAsString()}\n\n";
             $this->rollback_transaction();
             $this->clear_pdo_stmt();
-            return false;
+            return 0;
         }
 
         $this->stmt = null;
@@ -404,13 +413,13 @@ class Database extends Filter {
     public function __delete(string $table, array $params, array $operators) : int {
         
         if(count($params) !== count($operators)){
-            return false;
+            return 0;
         }
         if(!empty($params) && ($params_opts = $this->__initialize_opts($params)) === false){
-            return false;
+            return 0;
         }
         if(!empty($params_opts) && ($params = $this->__filter_vars($params, $params_opts)) === false){
-            return false;
+            return 0;
         }
 
         $table = filter_var($table, FILTER_UNSAFE_RAW);
@@ -440,23 +449,27 @@ class Database extends Filter {
         try {
             /**  Begin a transaction, turning off autocommit */
             $this->pdo->beginTransaction();
-            
+
             $this->stmt = $this->pdo->prepare($sql);
             $this->bind_params($params, $params_opts);
             $res = $this->stmt->execute();
             if($res){ 
                 $ret_rows = $this->stmt->rowCount();
             }
-
             /* Commit the changes */
-            $this->pdo->commit();
+            if( ! $this->pdo->commit()){
+                echo "Error on commiting delete transaction\nExecuting rollback";
+                $this->rollback_transaction();
+                return 0;
+            }
+            
         } catch (PDOException $e) {
             echo "Database error [{$e->getCode()}]: delete failed\n".
                           "err msg: {$e->getMessage()} on line: {$e->getLine()}\n".
                           "stack trace: {$e->getTraceAsString()}\n\n";
             $this->rollback_transaction();
             $this->clear_pdo_stmt();
-            return false;
+            return 0;
         }
 
         $this->stmt = null;
