@@ -12,7 +12,8 @@ $insert_params = [
 ];
 
 $insert_multiple_params = [];
-for($i = 0; $i < 100; $i++){
+for($i = 0; $i < 10; $i++){
+    $insert_params['port'] = $insert_params['port']+$i;
     $insert_multiple_params[] = $insert_params;
 }
 
@@ -21,7 +22,7 @@ $update_params = [
     'ip' => '1.1.1.1',
     'port' => 1111,
     'proxy' => json_encode(['proxy' => ['p1' => '1.1.1.1']]),
-    'note' => json_encode(['note' => ['note0' => 'Altered Note.']]),
+    'note' => json_encode(['note' => ['note0' => '']]),
     'blacklist' => 1,
     'created_at' => date('Y-m-d H:i:s'),
     'updated_at' => date('Y-m-d H:i:s'),
@@ -41,11 +42,11 @@ $where_params = [
 ];
 $select_operators = [
     'ip' => '=',
-    'port' => '=',
+    'port' => '>=',
 ];
 $update_operators = [
     'ip' => '=',
-    'port' => '=',
+    'port' => '>=',
 ];
 // delete record
 $delete_params = [
@@ -54,7 +55,7 @@ $delete_params = [
 ];
 $delete_operators = [
     'ip' => '=',
-    'port' => '=',
+    'port' => '>=',
 ]; 
 
 $join = [

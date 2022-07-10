@@ -15,7 +15,8 @@ $insert_params = [
 ];
 
 $insert_multiple_params = [];
-for($i = 0; $i < 100; $i++){
+for($i = 0; $i < 50; $i++){
+    $insert_params['username'] = $insert_params['username'].$i;
     $insert_multiple_params[] = $insert_params;
 }
 
@@ -42,25 +43,25 @@ $update_params = [
  * 
  */
 $where_params = [
-    'username' => 'tester',
-    'email' => 'test_user@email.com',
+    'username' => 'test',
+    // 'email' => 'test_user@email.com',
 ];
 $select_operators = [
-    'username' => '=',
-    'email' => '=',
+    'username' => 'LIKE',
+    // 'email' => '=',
 ];
 $update_operators = [
-    'username' => '=',
-    'email' => '=',
+    'username' => 'LIKE',
+    // 'email' => '=',
 ];
 // delete record
 $delete_params = [
     'username' => 'test',
-    'email' => 'test@test.test',
+    // 'email' => 'test@test.test',
 ];
 $delete_operators = [
-    'username' => '=',
-    'email' => '=',
+    'username' => 'LIKE',
+    // 'email' => '=',
 ]; 
 
 $join = [

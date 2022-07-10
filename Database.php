@@ -102,8 +102,11 @@ class Database extends Filter {
             foreach($params as $k => $param){
                 foreach($params_opts as $_k => $opt){
                     if($k === $opt['param']){
-                        unset($params_opts[$_k]);
-                        $select_params .= "{$opt['param']}{$operators[$k]}:{$opt['param']}".($_k !== $opt_last ? ' AND ' : '');
+                        unset($params_opts[$_k]);                        
+                        $select_params .= (strtoupper($operators[$k]) === 'LIKE')
+                                        ? "{$k} {$operators[$k]} CONCAT('%', :{$k}, '%')"
+                                        : "{$k}{$operators[$k]}:{$k}";
+                        $select_params .= ($_k !== $opt_last ? ' AND ' : '');
                         break;
                     }
                 }
@@ -116,7 +119,9 @@ class Database extends Filter {
                 .($joinstr ?? '')
                 .( ! empty($select_params) ? " WHERE $select_params" : '')
                 .($limit > 1 ? " LIMIT {$limit}" : '');
-
+        if($this->verbose){
+            echo "QUERY: {$sql}\n";
+        }
         /**
          * re-initialize database if neccessary
          */
@@ -160,7 +165,8 @@ class Database extends Filter {
     public function __insert(string $table, array $params, array $rcp = [], array $rcp_operators = []) : int {
 
         $successful = 0;
-        
+        $table = filter_var($table, FILTER_UNSAFE_RAW);
+
         /**
          * if params contains arrays of params => multiple inserts
          */
@@ -181,22 +187,31 @@ class Database extends Filter {
             }
             unset($p);
 
-            $table = filter_var($table, FILTER_UNSAFE_RAW);
             $table_params = implode(',', array_keys($params[0]));
-        
-            $vals_str = "";
-            foreach ($params as $key => $v) {
+            $vals_str = '';
+            $_seq = '';
+            $vals = '';
+            
+            foreach ($params as $key => $param) {
+                $_seq .= '_';
                 /**
                  * switch quotesfrom " to '
                  */
-                foreach ($v as $key => &$_v) {
-                    $_v = '\''.$_v.'\'';
+                foreach ($param as $p_key => &$_p) {
+                    $_p = '\''.$_p.'\'';
                 }
-                unset($_v);
-                $vals = implode(',', $v);
-                $vals_str .= " ({$vals}),";
+                unset($_p);
+
+                $vals = str_replace(',',",:{$_seq}",$table_params);
+                /**
+                 * first element does not get into str_replace
+                 */
+                $vals_first = substr($vals, 0, strpos($vals, ','));
+                $vals = ":{$_seq}{$vals_first}".strstr($vals, ',');
+
+                $vals_str .= "({$vals}),";
             }
-            
+
             $vals_str = substr($vals_str, 0, strlen($vals_str) -1);
             $vals_query = " VALUES {$vals_str}";
         }
@@ -214,7 +229,6 @@ class Database extends Filter {
                 return 0;
             }
 
-            $table = filter_var($table, FILTER_UNSAFE_RAW);
             $table_params = implode(',', array_keys($params));
     
             $vals = str_replace(',',',:',$table_params);
@@ -251,7 +265,9 @@ class Database extends Filter {
         }
 
         $sql = "INSERT INTO $table($table_params){$vals_query}";
-
+        if($this->verbose){
+            echo "QUERY: {$sql}\n";
+        }
         /**
          * re-initialize database if neccessary
          */
@@ -263,7 +279,35 @@ class Database extends Filter {
             /* Begin a transaction, turning off autocommit */
             $this->pdo->beginTransaction();
             $this->stmt = $this->pdo->prepare($sql);
-            $this->bind_params($params, $params_opts);
+            
+            $_seq = '';
+            $_po = [];
+            $qp = [];
+
+            /**
+             * modify keys to diff params placeholders in prepared statements
+             */
+            foreach ($params as $pk => $pv) {
+                $_seq .= '_';
+
+                foreach($pv as $pvk => $pvv){
+                    $qp[$pk][":{$_seq}{$pvk}"] = $params[$pk][$pvk];
+                }
+
+                foreach($params_opts as $key => $opt){
+                    $_po[$pk][$key] = [
+                       'param' =>  ":{$_seq}{$opt['param']}",
+                       'pdo_param' => $opt['pdo_param'],
+                       'filter' => $opt['filter']
+                    ];
+                }
+
+                unset($params[$pk]);
+
+            }
+            
+            $this->bind_params($qp, $_po);
+
             if($this->verbose){
                 echo "[+] EXECUTING QUERY..\n";
             }
@@ -271,7 +315,7 @@ class Database extends Filter {
             $res = $this->stmt->execute();
 
             if($res){
-                $successful = (isset($params[0]) && is_array($params[0])) ? count($params) : 1;
+                $successful = (isset($qp[0]) && is_array($qp[0])) ? count($qp) : 1;
             }
             
             /* Commit the changes */
@@ -338,7 +382,11 @@ class Database extends Filter {
             /** use underscore '_' to differentiate same keys */
             foreach($wqp as $k => $w){
                 $numeric_k = array_search($k, array_keys($wqp));
-                $str_wqp .= "{$k}{$wqp_operators[$k]}:_{$k}".($numeric_k !== $w_last ? ' AND ' : '');
+                $str_wqp .= (strtoupper($wqp_operators[$k]) === 'LIKE')
+                             ? "$k {$wqp_operators[$k]} CONCAT('%', :_{$k}, '%')"
+                             : "$k{$wqp_operators[$k]}:_{$k}";
+                $str_wqp .= ($numeric_k !== $w_last ? ' AND ' : '');
+
             }
 
         }
@@ -356,7 +404,9 @@ class Database extends Filter {
         $sql = "UPDATE $table SET $set_params".
                (isset($str_wqp) && ! empty($str_wqp) ? " WHERE $str_wqp" : '').
                ($limit > 1 ? ' LIMIT '.$limit : '');
-
+        if($this->verbose){
+            echo "QUERY: {$sql}\n";
+        }
         /**
          * re-initialize database if neccessary
          */
@@ -447,7 +497,10 @@ class Database extends Filter {
                 foreach($params_opts as $opt){
                     if($k === $opt['param']){
                         $numeric_k = array_search($k, array_keys($params));
-                        $del_params .= "$k{$operators[$k]}:$k".($numeric_k !== $opts_last ? ' AND ' : '');
+                        $del_params .= (strtoupper($operators[$k]) === 'LIKE')
+                                     ? "{$k} {$operators[$k]} CONCAT('%', :{$k}, '%')"
+                                     : "{$k}{$operators[$k]}:{$k}";
+                        $del_params .= ($numeric_k !== $opts_last ? ' AND ' : '');
                         break;
                     }
                 }
@@ -462,7 +515,9 @@ class Database extends Filter {
 
         $date = date("Y-m-d H:i:s");
         $sql = "DELETE FROM $table".(!empty($params) && !empty($params_opts) ? " WHERE {$del_params}" : '');
-
+        if($this->verbose){
+            echo "QUERY: {$sql}\n";
+        }
         /**
          * re-initialize database if neccessary
          */
@@ -542,7 +597,17 @@ class Database extends Filter {
      * @return void
      */
     private function bind_params(array $params, array $params_opts) : void {
-        $this->loop_bind_params($params, $params_opts);
+        // $this->loop_bind_params($params, $params_opts);
+
+        if(isset($params[0]) && is_array($params[0])){
+            foreach ($params as $p_index => $p) {
+                $this->loop_bind_params($p, $params_opts);
+            }
+            unset($p);
+        }
+        else {
+            $this->loop_bind_params($params, $params_opts);
+        }
     }
 
     /**
@@ -564,13 +629,27 @@ class Database extends Filter {
                 continue;
             }
 
-            foreach($params_opts as $opt){
-                if($param_name === $opt['param']){
-                    if($this->verbose){
-                        echo "BINDING PARAM: {$param_name}\n";
+            if(isset($params_opts[0]) && is_array($params_opts[0]) && is_numeric(key($params_opts[0]))){
+                foreach ($params_opts as $pok => $param_opt) {
+                    foreach($param_opt as $opt){
+                        if($param_name === $opt['param']){
+                            if($this->verbose){
+                                echo "BINDING PARAM: {$param_name}\n";
+                            }
+                            $this->stmt->bindParam("{$param_name}", $param, $opt['pdo_param']);
+                            break 2;
+                        }
                     }
-                    $this->stmt->bindParam("{$param_name}", $param, $opt['pdo_param']);
-                    break;
+                }
+            } else {
+                foreach($params_opts as $opt){
+                    if($param_name === $opt['param']){
+                        if($this->verbose){
+                            echo "BINDING PARAM: {$param_name}\n";
+                        }
+                        $this->stmt->bindParam("{$param_name}", $param, $opt['pdo_param']);
+                        break;
+                    }
                 }
             }
         }

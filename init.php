@@ -23,20 +23,40 @@
     }
 
     $start_update = microtime(1);
+    if($database->verbose){
+        echo "\nUPDATE {$t}\n";
+    }
     $update = $database->__update($t,$update_params,$where_params,$update_operators);
-    echo "time update(): ".(microtime(1) - $start_update)."[s]\n";
+    if($database->verbose){
+        echo "time update(): ".(microtime(1) - $start_update)."[s]\n";
+    }
 
     $start_delete = microtime(1);
+    if($database->verbose){
+        echo "\nDELETE {$t}\n";
+    }
     $delete = $database->__delete($t,$delete_params,$delete_operators);
-    echo "time delete(): ".(microtime(1) - $start_delete)."[s]\n";
+    if($database->verbose){
+        echo "time delete(): ".(microtime(1) - $start_delete)."[s]\n";
+    }
 
     $start_insert = microtime(1);
+    if($database->verbose){
+        echo "\nINSERT {$t}\n";
+    }
     $insert = $database->__insert($table=$t,$params=$insert_multiple_params,$rcp=$where_params,$rcp_operators=$select_operators);
-    echo "time insert(): ".(microtime(1) - $start_insert)."[s]\n";
+    if($database->verbose){
+        echo "time insert(): ".(microtime(1) - $start_insert)."[s]\n";
+    }
 
     $start_select = microtime(1);
+    if($database->verbose){
+        echo "\nSELECT {$t}\n";
+    }
     $select = $database->__select($table=$join[0]['table2'],$where_params,$select_operators,$join);
-    echo "time select(): ".(microtime(1) - $start_select)."[s]\n";
+    if($database->verbose){
+        echo "time select(): ".(microtime(1) - $start_select)."[s]\n";
+    }
 
     echo "update: \n";
     var_dump($update);
