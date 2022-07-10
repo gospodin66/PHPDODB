@@ -8,26 +8,32 @@ class Filter {
      * 
      * @return array => array of options (name, filter, pdo::param)
      */
-    protected function set_opts(string $p, $v) : array {
+    protected function set_opts(string $p, $v, bool $verbose) : array {
         $opts = ['param' => $p];
         switch (gettype($v))
         {
             case 'boolean':
-                echo "USING bool FILTER for param {$opts['param']}: \n";
+                if($verbose){
+                    echo "USING bool FILTER for param {$opts['param']}: \n";
+                }
                 $opts += [
                     'pdo_param' => PDO::PARAM_BOOL,
                     'filter' => FILTER_VALIDATE_BOOLEAN
                 ];
                 break;
             case 'integer':
-                echo "USING int FILTER for param {$opts['param']}: \n";
+                if($verbose){
+                    echo "USING int FILTER for param {$opts['param']}: \n";
+                }
                 $opts += [
                     'pdo_param' => PDO::PARAM_INT,
                     'filter' => FILTER_SANITIZE_NUMBER_INT
                 ];
                 break;
             case 'double':
-                echo "USING double FILTER for param {$opts['param']}: \n";
+                if($verbose){
+                    echo "USING double FILTER for param {$opts['param']}: \n";
+                }
                 $opts += [
                     'pdo_param' => PDO::PARAM_STR,
                     'filter' => FILTER_SANITIZE_NUMBER_FLOAT
@@ -37,16 +43,24 @@ class Filter {
                 $opts += ['pdo_param' => PDO::PARAM_STR];
 
                 if(preg_match('/^email$/', $opts['param']) === 1){
-                    echo "USING email [string] FILTER for param {$opts['param']}: \n";
+                    if($verbose){
+                        echo "USING email [string] FILTER for param {$opts['param']}: \n";
+                    }
                     $opts += ['filter' => FILTER_VALIDATE_EMAIL];
                 } else if(preg_match('/^(url|path)$/', $opts['param']) === 1){
-                    echo "USING url [string] FILTER for param {$opts['param']}: \n";
+                    if($verbose){
+                        echo "USING url [string] FILTER for param {$opts['param']}: \n";
+                    }
                     $opts += ['filter' => FILTER_VALIDATE_URL];
                 } else if(preg_match('/^(ip){1}(_{1}(addr){1}(ess){0,1}){0,1}$/', $opts['param']) === 1){
-                    echo "USING ip [string] FILTER for param {$opts['param']}: \n";
+                    if($verbose){
+                        echo "USING ip [string] FILTER for param {$opts['param']}: \n";
+                    }
                     $opts += ['filter' => FILTER_VALIDATE_IP];
                 } else {
-                    echo "USING default [string] FILTER for param {$opts['param']}: \n";
+                    if($verbose){
+                        echo "USING default [string] FILTER for param {$opts['param']}: \n";
+                    }
                     $opts += ['filter' => FILTER_UNSAFE_RAW];
                 }
                 break;
@@ -168,11 +182,11 @@ class Filter {
      * @return opts  => array => param options (name, filter, pdo::param)
      * @return false => indicates malformed options
      */
-    protected function __initialize_opts(array $params) : array {
+    protected function __initialize_opts(array $params, bool $verbose) : array {
         $optsk = 0;
         $opts = [];
         foreach($params as $k => $p){
-            $opts[$optsk] = $this->set_opts($k, $p);
+            $opts[$optsk] = $this->set_opts($k, $p, $verbose);
             if( ! is_int($opts[$optsk]['pdo_param']) || ! is_int($opts[$optsk]['filter'])){
                 return [];
             }

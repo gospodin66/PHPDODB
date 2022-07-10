@@ -26,7 +26,8 @@ class Database extends Filter {
      * 
      * @return resource => new PDO instance
      */
-    public function __construct() {
+    public function __construct(bool $verbose) {
+        $this->verbose = $verbose;
         self::$host = readenv('DB_HOST');
         self::$port = intval(readenv('DB_PORT'));
         self::$user = readenv('DB_USER');
@@ -78,7 +79,7 @@ class Database extends Filter {
                 echo "select-error: params len doesn't match operators len.\n";
                 return [];
             }
-            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params)) === []){
+            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params, $this->verbose)) === []){
                 echo "select-error: init opts failed.\n";
                 return [];
             }
@@ -126,8 +127,17 @@ class Database extends Filter {
         try {
             $this->stmt = $this->pdo->prepare($sql);
             $this->bind_params($params=$params, $params_opts=($params_opts_copy ?? $params_opts ?? []));
+            if($this->verbose){
+                echo "[+] EXECUTING QUERY..\n";
+            }
+
             $this->stmt->execute();
+
             $result = $this->stmt->fetchAll();
+            
+            if($this->verbose){
+                echo "[+] QUERY SUCCESSFULY EXECUTED!\n";
+            }
         } catch (PDOException $e) {
             echo "Database error [{$e->getCode()}]: select failed\n".
                           "err msg: {$e->getMessage()} on line: {$e->getLine()}\n".
@@ -158,7 +168,7 @@ class Database extends Filter {
             /**
              * single array of options for all params => same for all types
              */
-            if( ! empty($params[0]) && ($params_opts = $this->__initialize_opts($params[0])) === []){
+            if( ! empty($params[0]) && ($params_opts = $this->__initialize_opts($params[0], $this->verbose)) === []){
                 echo "insert-error: init opts failed.\n";
                 return 0;
             }
@@ -195,7 +205,7 @@ class Database extends Filter {
          */
         else {
 
-            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params)) === []){
+            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params, $this->verbose)) === []){
                 echo "insert-error: init opts failed.\n";
                 return 0;
             }
@@ -221,7 +231,7 @@ class Database extends Filter {
                 echo "insert-error: select: rcp params len doesn't match rcp operators len.\n";
                 return 0;
             }
-            if( ! empty($rcp) && ($rcparams_opts = $this->__initialize_opts($rcp)) === []){
+            if( ! empty($rcp) && ($rcparams_opts = $this->__initialize_opts($rcp, $this->verbose)) === []){
                 echo "insert-error: init rcp opts failed.\n";
                 return 0;
             }
@@ -254,16 +264,25 @@ class Database extends Filter {
             $this->pdo->beginTransaction();
             $this->stmt = $this->pdo->prepare($sql);
             $this->bind_params($params, $params_opts);
+            if($this->verbose){
+                echo "[+] EXECUTING QUERY..\n";
+            }
+
             $res = $this->stmt->execute();
+
             if($res){
                 $successful = (isset($params[0]) && is_array($params[0])) ? count($params) : 1;
             }
-
+            
             /* Commit the changes */
             if( ! $this->pdo->commit()){
                 echo "Error on commiting insert transaction\nExecuting rollback";
                 $this->rollback_transaction();
                 return 0;
+            }
+
+            if($this->verbose){
+                echo "[+] QUERY SUCCESSFULY EXECUTED!\n";
             }
 
         } catch (PDOException $e) {
@@ -289,7 +308,7 @@ class Database extends Filter {
      */
     public function __update(string $table, array $params, array $wqp = [], array $wqp_operators = [], int $limit = 0) : int {
 
-        if( ! empty($params) && ($params_opts = $this->__initialize_opts($params)) === []){
+        if( ! empty($params) && ($params_opts = $this->__initialize_opts($params, $this->verbose)) === []){
             echo "update-error: init opts failed.\n";
             return 0;
         }
@@ -304,7 +323,7 @@ class Database extends Filter {
                 echo "update-error: params len doesn't match operators len.\n";
                 return 0;
             }
-            if( ! empty($wqp) && ($wqp_opts = $this->__initialize_opts($wqp)) === []){
+            if( ! empty($wqp) && ($wqp_opts = $this->__initialize_opts($wqp, $this->verbose)) === []){
                 echo "update-error: init opts failed.\n";
                 return 0;
             }
@@ -364,17 +383,25 @@ class Database extends Filter {
             } else {
                 $this->bind_params($params, $params_opts);
             }
+            if($this->verbose){
+                echo "[+] EXECUTING QUERY..\n";
+            }
 
             $res = $this->stmt->execute();
+
             if($res){ 
                 $ret_rows = $this->stmt->rowCount();
             }
-
+            
             /* Commit the changes */
             if( ! $this->pdo->commit()){
                 echo "Error on commiting update transaction\nExecuting rollback";
                 $this->rollback_transaction();
                 return 0;
+            }
+
+            if($this->verbose){
+                echo "[+] QUERY SUCCESSFULY EXECUTED!\n";
             }
             
         } catch (PDOException $e) {
@@ -405,7 +432,7 @@ class Database extends Filter {
             if(count($params) !== count($operators)){
                 return 0;
             }
-            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params)) === []){
+            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params, $this->verbose)) === []){
                 echo "delete-error: init opts failed.\n";
                 return 0;
             }
@@ -450,7 +477,12 @@ class Database extends Filter {
             if( ! empty($params) && ! empty($params_opts)){
                 $this->bind_params($params, $params_opts);
             }
+            if($this->verbose){
+                echo "[+] EXECUTING QUERY..\n";
+            }
+
             $res = $this->stmt->execute();
+
             if($res){ 
                 $ret_rows = $this->stmt->rowCount();
             }
@@ -459,6 +491,10 @@ class Database extends Filter {
                 echo "Error on commiting delete transaction\nExecuting rollback";
                 $this->rollback_transaction();
                 return 0;
+            }
+
+            if($this->verbose){
+                echo "[+] QUERY SUCCESSFULY EXECUTED!\n";
             }
             
         } catch (PDOException $e) {
@@ -520,7 +556,9 @@ class Database extends Filter {
             
             if(in_array($param_name, self::PASSWORD_POSSIBLE_COLUMNS)){
                 $hashed_pass = password_hash($param, PASSWORD_BCRYPT, ["cost" => self::BCRYPT_COST]);
-                echo "BINDING PASSWORD PARAM: {$param_name}\n";
+                if($this->verbose){
+                    echo "BINDING PASSWORD PARAM: {$param_name}\n";
+                }
                 $this->stmt->bindParam(":{$param_name}", $hashed_pass, PDO::PARAM_STR);
                 unset($params[$param_name]);
                 continue;
@@ -528,7 +566,9 @@ class Database extends Filter {
 
             foreach($params_opts as $opt){
                 if($param_name === $opt['param']){
-                    echo "BINDING PARAM: {$param_name}\n";
+                    if($this->verbose){
+                        echo "BINDING PARAM: {$param_name}\n";
+                    }
                     $this->stmt->bindParam("{$param_name}", $param, $opt['pdo_param']);
                     break;
                 }

@@ -12,7 +12,9 @@
 
     $start = microtime(1);
     
-    $database = new Database;
+    $verbose = (isset($argv[1]) && (intval($argv[1]) === 1)) ? $argv[1] : 0;
+
+    $database = new Database($verbose);
 
     if($t === 'clients'){
         include_once "{$t}.php";
