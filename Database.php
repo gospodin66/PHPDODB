@@ -73,20 +73,19 @@ class Database extends Filter {
      * @return array => array of matching records
      */
     public function __select(string $table, array $params = [], array $operators = [], array $join = [], int $limit = 0) : array { 
-        if(!empty($params)){
+        if( ! empty($params)){
             if(count($params) !== count($operators)){
+                echo "select-error: params len doesn't match operators len.\n";
                 return [];
             }
-            $params_opts = $this->__initialize_opts($params);
-            if(empty($params_opts)){
+            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params)) === []){
+                echo "select-error: init opts failed.\n";
                 return [];
             }
-            if(!empty($params_opts)){
-                $params = $this->__filter_vars($params, $params_opts[0]);
-                if(empty($params)){
-                    return [];
-                }
-            } 
+            if( ! empty($params_opts) && ($params = $this->__filter_vars($params, $params_opts)) === []){
+                echo "select-error: filtering vars failed.\n";
+                return [];
+            }
         }
 
         $limit = is_numeric($limit) ? intval($limit) : 0;
@@ -153,85 +152,56 @@ class Database extends Filter {
         $successful = 0;
         
         /**
-         * - if params contains arrays of params => multiple inserts
+         * if params contains arrays of params => multiple inserts
          */
-        if(isset($params[0]) && is_array($params[0])){
-
-            $vals_arr = $vals = [];
-            
+        if(isset($params[0]) && is_array($params[0])){            
             /**
              * single array of options for all params => same for all types
              */
-            $params_opts = $this->__initialize_opts($params);
+            if( ! empty($params[0]) && ($params_opts = $this->__initialize_opts($params[0])) === []){
+                echo "insert-error: init opts failed.\n";
+                return 0;
+            }
 
-            foreach ($params as $key => $p) {
-                $p = $this->__filter_vars($p, $params_opts);
-                if(!empty($params_opts) && empty($p)){
+            foreach($params as $key => &$p){
+                if(($p = $this->__filter_vars($p, $params_opts)) === []){
+                    echo "insert-error: filtering vars failed.\n";
                     return 0;
                 }
-                $vals_arr[] = $p;
             }
+            unset($p);
 
-            $rcparams_opts = $this->__initialize_opts($rcp);
-            if(!empty($rcp) && empty($rcparams_opts)){
-                echo  "** running without record-check-params\n";
-            }
-
-            $rcp = $this->__filter_vars($rcp, $rcparams_opts);
-            if(!empty($rcparams_opts) && empty($rcp)){
-                echo  "** running without record-check-params\n";
-            }
-            
             $table = filter_var($table, FILTER_UNSAFE_RAW);
             $table_params = implode(',', array_keys($params[0]));
         
-            $vals = str_replace(',',',:',$table_params);
-            $vals = substr($vals, 0, 0). ':' . substr($vals, 0);
-
             $vals_str = "";
-            foreach ($vals_arr as $key => $v) {
+            foreach ($params as $key => $v) {
+                /**
+                 * switch quotesfrom " to '
+                 */
                 foreach ($v as $key => &$_v) {
                     $_v = '\''.$_v.'\'';
                 }
                 unset($_v);
-
-                $val = implode(',', $v);
-                $vals_str .= " ({$val}),";
+                $vals = implode(',', $v);
+                $vals_str .= " ({$vals}),";
             }
-
-            $params = $vals_arr;
             
             $vals_str = substr($vals_str, 0, strlen($vals_str) -1);
-            $vals_query = " VALUES $vals_str";
+            $vals_query = " VALUES {$vals_str}";
         }
         /**
          * if params is a single array => single insert
          */
         else {
 
-            $params_opts = $this->__initialize_opts($params);
-            if(empty($params_opts)){
+            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params)) === []){
+                echo "insert-error: init opts failed.\n";
                 return 0;
             }
-
-            if(!empty($params_opts)){
-                $params = $this->__filter_vars($params, $params_opts[0]);
-                if(empty($params)){
-                    return 0;
-                }
-            } 
-
-            if(!empty($rcp)){
-                $rcparams_opts = $this->__initialize_opts($rcp);
-                if(empty($rcparams_opts)){
-                    return 0;
-                }
-                if(!empty($rcparams_opts)){
-                    $rcp = $this->__filter_vars($rcp, $rcparams_opts);
-                    if(empty($rcp)){
-                        return 0;
-                    }
-                }
+            if( ! empty($params_opts) && ($params = $this->__filter_vars($params, $params_opts)) === []){
+                echo "insert-error: filtering vars failed.\n";
+                return 0;
             }
 
             $table = filter_var($table, FILTER_UNSAFE_RAW);
@@ -240,22 +210,36 @@ class Database extends Filter {
             $vals = str_replace(',',',:',$table_params);
             $vals = substr($vals, 0, 0). ':' . substr($vals, 0);
 
-            $vals_query = " VALUES($vals)";
+            $vals_query = " VALUES({$vals})";
         }
-    
+
+        /**
+         * check if record already exists
+         */
         if( ! empty($rcp) && ! empty($rcp_operators)){
+            if((count($rcp) !== count($rcp_operators))){
+                echo "insert-error: select: rcp params len doesn't match rcp operators len.\n";
+                return 0;
+            }
+            if( ! empty($rcp) && ($rcparams_opts = $this->__initialize_opts($rcp)) === []){
+                echo "insert-error: init rcp opts failed.\n";
+                return 0;
+            }
+            if( ! empty($rcparams_opts) && ($rcp = $this->__filter_vars($rcp, $rcparams_opts)) === []){
+                echo "insert-error: filtering rcp vars failed.\n";
+                return 0;
+            }
 
             $existing_record = $this->__select($table, $rcp, $rcp_operators);
 
             if( ! empty($existing_record)){
-                echo "Record already exists\n";
-                print_r($existing_record);
+                echo "insert-error: record already exists.\n";
+                //print_r($existing_record);
                 $this->clear_pdo_stmt();
                 return 0;
             }
         }
 
-        $date = date("Y-m-d H:i:s");
         $sql = "INSERT INTO $table($table_params){$vals_query}";
 
         /**
@@ -305,25 +289,27 @@ class Database extends Filter {
      */
     public function __update(string $table, array $params, array $wqp = [], array $wqp_operators = [], int $limit = 0) : int {
 
-        $params_opts = $this->__initialize_opts($params);
-        if(empty($params_opts)){
+        if( ! empty($params) && ($params_opts = $this->__initialize_opts($params)) === []){
+            echo "update-error: init opts failed.\n";
+            return 0;
+        }
+        if( ! empty($params_opts) && ($params = $this->__filter_vars($params, $params_opts[0])) === []){
+            echo "update-error: filtering vars failed.\n";
             return 0;
         }
 
-        $params = $this->__filter_vars($params, $params_opts[0]);
-        if(empty($params)){
-            return 0;
-        } 
-
         if( ! empty($wqp) && ! empty($wqp_operators)){
 
-            $wqp_opts = $this->__initialize_opts($wqp);
-            if(empty($wqp_opts)){
+            if(count($wqp) !== count($wqp_operators)){
+                echo "update-error: params len doesn't match operators len.\n";
                 return 0;
             }
-
-            $wqp = $this->__filter_vars($wqp, $wqp_opts);
-            if(empty($wqp)){
+            if( ! empty($wqp) && ($wqp_opts = $this->__initialize_opts($wqp)) === []){
+                echo "update-error: init opts failed.\n";
+                return 0;
+            }
+            if( ! empty($wqp_opts) && ($wqp = $this->__filter_vars($wqp, $wqp_opts)) === []){
+                echo "update-error: filtering vars failed.\n";
                 return 0;
             }
 
@@ -410,34 +396,45 @@ class Database extends Filter {
      * 
      * @return int => num of affected rows
      */
-    public function __delete(string $table, array $params, array $operators) : int {
-        
-        if(count($params) !== count($operators)){
-            return 0;
-        }
-        if(!empty($params) && ($params_opts = $this->__initialize_opts($params)) === false){
-            return 0;
-        }
-        if(!empty($params_opts) && ($params = $this->__filter_vars($params, $params_opts)) === false){
-            return 0;
+    public function __delete(string $table, array $params = [], array $operators = []) : int {
+
+        $del_params = '';
+
+        if( ! empty($params)){
+
+            if(count($params) !== count($operators)){
+                return 0;
+            }
+            if( ! empty($params) && ($params_opts = $this->__initialize_opts($params)) === []){
+                echo "delete-error: init opts failed.\n";
+                return 0;
+            }
+            if( ! empty($params_opts) && ($params = $this->__filter_vars($params, $params_opts)) === []){
+                echo "delete-error: filtering vars failed.\n";
+                return 0;
+            }
+
+            $opts_last = count($params_opts) -1;
+
+            foreach($params as $k => $param){
+                foreach($params_opts as $opt){
+                    if($k === $opt['param']){
+                        $numeric_k = array_search($k, array_keys($params));
+                        $del_params .= "$k{$operators[$k]}:$k".($numeric_k !== $opts_last ? ' AND ' : '');
+                        break;
+                    }
+                }
+            }
+            
+        } else {
+            echo "no arguments provided to delete: deleting all..\n";
         }
 
         $table = filter_var($table, FILTER_UNSAFE_RAW);
-        $del_params = '';
-        $opts_last = count($params_opts) -1;
-
-        foreach($params as $k => $param){
-            foreach($params_opts as $opt){
-                if($k === $opt['param']){
-                    $numeric_k = array_search($k, array_keys($params));
-                    $del_params .= "$k{$operators[$k]}:$k".($numeric_k !== $opts_last ? ' AND ' : '');
-                    break;
-                }
-            }
-        }
+        
 
         $date = date("Y-m-d H:i:s");
-        $sql = "DELETE FROM $table WHERE $del_params";
+        $sql = "DELETE FROM $table".(!empty($params) && !empty($params_opts) ? " WHERE {$del_params}" : '');
 
         /**
          * re-initialize database if neccessary
@@ -449,9 +446,10 @@ class Database extends Filter {
         try {
             /**  Begin a transaction, turning off autocommit */
             $this->pdo->beginTransaction();
-
             $this->stmt = $this->pdo->prepare($sql);
-            $this->bind_params($params, $params_opts);
+            if( ! empty($params) && ! empty($params_opts)){
+                $this->bind_params($params, $params_opts);
+            }
             $res = $this->stmt->execute();
             if($res){ 
                 $ret_rows = $this->stmt->rowCount();
@@ -508,21 +506,7 @@ class Database extends Filter {
      * @return void
      */
     private function bind_params(array $params, array $params_opts) : void {
-        /**
-         * array of entities
-         */
-        if(isset($params[0]) && is_array($params[0])){
-            foreach ($params as $p_index => $p) {
-                $this->loop_bind_params($p, $params_opts);
-            }
-            unset($p);
-        }
-        /**
-         * single entity
-         */
-        else {
-            $this->loop_bind_params($params, $params_opts);
-        }
+        $this->loop_bind_params($params, $params_opts);
     }
 
     /**
@@ -531,15 +515,20 @@ class Database extends Filter {
      * @return void
      */
     private function loop_bind_params(array $params, array $params_opts) : void {
+
         foreach($params as $param_name => &$param){
+            
             if(in_array($param_name, self::PASSWORD_POSSIBLE_COLUMNS)){
                 $hashed_pass = password_hash($param, PASSWORD_BCRYPT, ["cost" => self::BCRYPT_COST]);
+                echo "BINDING PASSWORD PARAM: {$param_name}\n";
                 $this->stmt->bindParam(":{$param_name}", $hashed_pass, PDO::PARAM_STR);
                 unset($params[$param_name]);
                 continue;
             }
+
             foreach($params_opts as $opt){
                 if($param_name === $opt['param']){
+                    echo "BINDING PARAM: {$param_name}\n";
                     $this->stmt->bindParam("{$param_name}", $param, $opt['pdo_param']);
                     break;
                 }

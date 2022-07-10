@@ -4,78 +4,21 @@
 
     Autoloader::register_autoload();
 
-    $t = 'clients';
+
+    
+    // $t = 'clients';
+    $t = 'users';
+
+
     $start = microtime(1);
     
     $database = new Database;
 
-    $insert_params = [
-        'user_id' => 1,
-        'ip' => '246.90.125.89',
-        'port' => 1283,
-        'proxy' => json_encode(['proxy' => ['p1' => '177.77.77.77']]),
-        'note' => json_encode(['note' => ['note0' => 'Dummy Note.', 'note1' => 7271]]),
-        'blacklist' => 0,
-        'created_at' => date('Y-m-d H:i:s'),
-        'updated_at' => date('Y-m-d H:i:s'),
-    ];
-
-    $insert_multiple_params = [];
-    for($i = 0; $i < 400000; $i++){
-        $insert_multiple_params[] = $insert_params;
+    if($t === 'clients'){
+        include_once "{$t}.php";
+    } else {
+        include_once "{$t}.php";
     }
-
-    $update_params = [
-        'user_id' => 1,
-        'ip' => '1.1.1.1',
-        'port' => 1111,
-        'proxy' => json_encode(['proxy' => ['p1' => '1.1.1.1']]),
-        'note' => json_encode(['note' => ['note0' => '', 'note1' => 0]]),
-        'blacklist' => 1,
-        'created_at' => date('Y-m-d H:i:s'),
-        'updated_at' => date('Y-m-d H:i:s'),
-    ];
-
-    /**
-     *
-     * params for 'where' query in mysql:
-     * -> update(record-to-update)
-     * -> insert(if-record-exists)
-     * -> select(where-selector)
-     * 
-     */
-    $where_params = [
-        'ip' => '246.90.125.89',
-        'port' => 1283,
-    ];
-    $select_operators = [
-        'ip' => '=',
-        'port' => '=',
-    ];
-    $update_operators = [
-        'ip' => '=',
-        'port' => '=',
-    ];
-    // delete record
-    $delete_params = [
-        'ip' => '1.1.1.1',
-        'port' => 1111,
-    ];
-    $delete_operators = [
-        'ip' => '=',
-        'port' => '>=',
-    ]; 
-
-    $join = [
-        [
-            'type' => 'INNER',
-            'operator' => '=',
-            'table1' => 'users',
-            'param1' => 'id',
-            'table2' => 'clients',
-            'param2' => 'user_id',
-        ],
-    ];
 
     $start_update = microtime(1);
     $update = $database->__update($t,$update_params,$where_params,$update_operators);
@@ -86,7 +29,7 @@
     echo "time delete(): ".(microtime(1) - $start_delete)."[s]\n";
 
     $start_insert = microtime(1);
-    $insert = $database->__insert($t,$insert_multiple_params,$where_params,$select_operators);
+    $insert = $database->__insert($table=$t,$params=$insert_multiple_params,$rcp=$where_params,$rcp_operators=$select_operators);
     echo "time insert(): ".(microtime(1) - $start_insert)."[s]\n";
 
     $start_select = microtime(1);

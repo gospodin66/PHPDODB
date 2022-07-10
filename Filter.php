@@ -13,18 +13,21 @@ class Filter {
         switch (gettype($v))
         {
             case 'boolean':
+                echo "USING bool FILTER for param {$opts['param']}: \n";
                 $opts += [
                     'pdo_param' => PDO::PARAM_BOOL,
                     'filter' => FILTER_VALIDATE_BOOLEAN
                 ];
                 break;
             case 'integer':
+                echo "USING int FILTER for param {$opts['param']}: \n";
                 $opts += [
                     'pdo_param' => PDO::PARAM_INT,
                     'filter' => FILTER_SANITIZE_NUMBER_INT
                 ];
                 break;
             case 'double':
+                echo "USING double FILTER for param {$opts['param']}: \n";
                 $opts += [
                     'pdo_param' => PDO::PARAM_STR,
                     'filter' => FILTER_SANITIZE_NUMBER_FLOAT
@@ -32,19 +35,18 @@ class Filter {
                 break;
             case 'string':
                 $opts += ['pdo_param' => PDO::PARAM_STR];
-                if($opts['param'] === 'email'){
+
+                if(preg_match('/^email$/', $opts['param']) === 1){
+                    echo "USING email [string] FILTER for param {$opts['param']}: \n";
                     $opts += ['filter' => FILTER_VALIDATE_EMAIL];
-                }
-                else if($opts['param'] === 'url'
-                     || $opts['param'] === 'path'){
+                } else if(preg_match('/^(url|path)$/', $opts['param']) === 1){
+                    echo "USING url [string] FILTER for param {$opts['param']}: \n";
                     $opts += ['filter' => FILTER_VALIDATE_URL];
-                }
-                else if($opts['param'] === 'ip'
-                     || $opts['param'] === 'ip_address'
-                     || $opts['param'] === 'ip_addr'){
+                } else if(preg_match('/^(ip){1}(_{1}(addr){1}(ess){0,1}){0,1}$/', $opts['param']) === 1){
+                    echo "USING ip [string] FILTER for param {$opts['param']}: \n";
                     $opts += ['filter' => FILTER_VALIDATE_IP];
-                }
-                else {
+                } else {
+                    echo "USING default [string] FILTER for param {$opts['param']}: \n";
                     $opts += ['filter' => FILTER_UNSAFE_RAW];
                 }
                 break;
@@ -95,27 +97,70 @@ class Filter {
      * @return array => array of filtered vars (name, filter, pdo::param)
      * @return false => indicates invalid format
      */
-    protected function __filter_vars(&$vars, array $opts) : array {
-        if(count($vars) === count($opts))
-        {
+    protected function __filter_vars(array &$vars, array $opts) : array {
+        if(count($vars) === count($opts)){
+            
             $optsk = 0;
-            foreach($vars as $k => &$var)
-            {
-                if(($var = filter_var($var,
-                             ($opts[$optsk]['filter'] !== null
-                             ? $opts[$optsk]['filter']
-                             : FILTER_UNSAFE_RAW)
-                           )
-                    ) === false || $var === null)
-                {
-                    return [];
+
+            foreach($vars as $k => &$var){
+                /**
+                 * FILTER_SANITIZE_STRING is getting deprecated
+                 * FILTER_UNSAFE_RAW does nothing without flags
+                 * ::>> use htmlspecialchars
+                 */
+                if($opts[$optsk]['filter'] === FILTER_UNSAFE_RAW){
+                    /**
+                     * json & date formats are filtered differently
+                     */
+                    if($this->var_is_json($var) || is_int(strtotime($var))){
+                        if(($var = filter_var($var, $opts[$optsk]['filter'])) === false || $var === null){
+                            return [];
+                        }
+                    }
+                    else {
+                        if(($var = htmlspecialchars($var, ENT_QUOTES, 'utf-8')) === ''){
+                            return [];
+                        }
+                    }
+                } else {
+                    if(($var = filter_var($var,
+                                 ($opts[$optsk]['filter'] !== null
+                                 ? $opts[$optsk]['filter']
+                                 : FILTER_UNSAFE_RAW)
+                               )
+                        ) === false || $var === null)
+                    {
+                        return [];
+                    }
                 }
                 $optsk++;
             }
             unset($var);
         }
+
         return $vars;
     }
+
+    /**
+     * 
+     * => helper fnc
+     * 
+     * @return is_json
+     */
+    private function var_is_json(string $var) : bool {
+        try {
+            if(($var = json_decode($json=$var,$flags=JSON_THROW_ON_ERROR)) === null || $var === false){
+                return false;
+            }
+            if(is_numeric($var)){
+                return false;
+            }
+        } catch (JsonException $e) {
+            return false;
+        }
+        return true;
+    }
+
 
     /**
      * @param params => array
@@ -126,10 +171,9 @@ class Filter {
     protected function __initialize_opts(array $params) : array {
         $optsk = 0;
         $opts = [];
-        foreach($params as $k => $p)
-        {
+        foreach($params as $k => $p){
             $opts[$optsk] = $this->set_opts($k, $p);
-            if(false === is_int($opts[$optsk]['pdo_param']) || false === is_int($opts[$optsk]['filter'])){
+            if( ! is_int($opts[$optsk]['pdo_param']) || ! is_int($opts[$optsk]['filter'])){
                 return [];
             }
             $optsk++;
