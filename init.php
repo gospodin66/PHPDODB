@@ -5,8 +5,8 @@
     Autoloader::register_autoload();
 
 
-    $t = 'clients';
-    // $t = 'users';
+    // $t = 'clients';
+    $t = 'users';
 
 
     $start = microtime(1);
@@ -25,7 +25,12 @@
     if($database->verbose){
         echo "\nUPDATE {$t}\n";
     }
-    $update = $database->__update($t,$update_params,$where_params,$update_operators);
+    $update = $database->__update(
+        $t,
+        $update_params,
+        $where_params,
+        $update_operators
+    );
     if($database->verbose){
         echo "time update(): ".(microtime(1) - $start_update)."[s]\n";
     }
@@ -34,7 +39,11 @@
     if($database->verbose){
         echo "\nDELETE {$t}\n";
     }
-    $delete = $database->__delete($t,$delete_params,$delete_operators);
+    $delete = $database->__delete(
+        $t,
+        $delete_params,
+        $delete_operators
+    );
     if($database->verbose){
         echo "time delete(): ".(microtime(1) - $start_delete)."[s]\n";
     }
@@ -43,7 +52,12 @@
     if($database->verbose){
         echo "\nINSERT {$t}\n";
     }
-    $insert = $database->__insert($table=$t,$params=$insert_multiple_params,$rcp=$where_params,$rcp_operators=$select_operators);
+    $insert = $database->__insert(
+        $t,
+        $insert_multiple_params,
+        $where_params,
+        $select_operators
+    );
     if($database->verbose){
         echo "time insert(): ".(microtime(1) - $start_insert)."[s]\n";
     }
@@ -52,7 +66,14 @@
     if($database->verbose){
         echo "\nSELECT {$t}\n";
     }
-    $select = $database->__select($table=$join[0]['table2'],$select_columns=$select_columns,$params=$where_params,$operators=$select_operators,$join=$join,$limit=3);
+    $select = $database->__select(
+        $join[0]['table2'],
+        $select_columns,
+        $where_params,
+        $select_operators,
+        $join,
+        5,
+    );
     if($database->verbose){
         echo "time select(): ".(microtime(1) - $start_select)."[s]\n";
     }
@@ -64,7 +85,7 @@
     echo "insert: \n";
     var_dump($insert);
     echo "select: \n";
-    print_r($select);
+    // print_r($select);
     var_dump(count($select));
 
     $database->clear_pdo_stmt();

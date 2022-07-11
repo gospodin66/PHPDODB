@@ -66,13 +66,21 @@ class Database extends Filter {
 
     /**
      * @param table  => table to select from
-     * @param params => assoc. array of params to validate
+     * @param params => assoc. array of params to validate ('WHERE' params)
      * @param join   => array of JOIN params => default empty array
      * @param limit  => limit query => default 0
      * 
      * @return array => array of matching records
      */
-    public function __select(string $table, array $select_columns = [], array $params = [], array $operators = [], array $join = [], int $limit = 0) : array { 
+    public function __select(
+        string $table,
+        array $select_columns = [],
+        array $params         = [],
+        array $operators      = [],
+        array $join           = [],
+        int $limit            = 0
+    ) : array
+    {
         if( ! empty($params)){
             if(count($params) !== count($operators)){
                 echo "select-error: params len doesn't match operators len.\n";
@@ -90,7 +98,7 @@ class Database extends Filter {
 
         $limit = is_numeric($limit) ? intval($limit) : 0;
         $table = filter_var($table, FILTER_UNSAFE_RAW);
-        $select_params = '';
+        $select_where_params = '';
 
         if( ! empty($params) && ! empty($operators)){
             $params_opts_copy = $params_opts;
@@ -102,10 +110,10 @@ class Database extends Filter {
                 foreach($params_opts as $_k => $opt){
                     if($k === $opt['param']){
                         unset($params_opts[$_k]);                        
-                        $select_params .= (strtoupper($operators[$k]) === 'LIKE')
-                                        ? "{$k} {$operators[$k]} CONCAT('%', :{$k}, '%')"
-                                        : "{$k}{$operators[$k]}:{$k}";
-                        $select_params .= ($_k !== $opt_last ? ' AND ' : '');
+                        $select_where_params .= (strtoupper($operators[$k]) === 'LIKE')
+                                              ? "{$k} {$operators[$k]} CONCAT('%', :{$k}, '%')"
+                                              : "{$k}{$operators[$k]}:{$k}";
+                        $select_where_params .= ($_k !== $opt_last ? ' AND ' : '');
                         break;
                     }
                 }
@@ -118,8 +126,9 @@ class Database extends Filter {
                 .($select_columns !== [] ? implode(',', $select_columns) : '*')
                 ." FROM {$table}"
                 .($joinstr ?? '')
-                .( ! empty($select_params) ? " WHERE $select_params" : '')
+                .( ! empty($select_where_params) ? " WHERE $select_where_params" : '')
                 .($limit > 1 ? " LIMIT {$limit}" : '');
+    
         if($this->verbose){
             echo "QUERY: {$sql}\n";
         }
@@ -133,13 +142,13 @@ class Database extends Filter {
         try {
             $this->stmt = $this->pdo->prepare($sql);
             $this->bind_params($params=$params, $params_opts=($params_opts_copy ?? $params_opts ?? []));
+
             if($this->verbose){
                 echo "[+] EXECUTING QUERY..\n";
             }
 
-            $this->stmt->execute();
-
-            $result = $this->stmt->fetchAll();
+            $select_res = $this->stmt->execute();
+            $result = $select_res ? $this->stmt->fetchAll() : 0;
             
             if($this->verbose){
                 echo "[+] QUERY SUCCESSFULY EXECUTED!\n";
@@ -163,8 +172,13 @@ class Database extends Filter {
      * 
      * @return successful => number of successful inserts
      */
-    public function __insert(string $table, array $params, array $rcp = [], array $rcp_operators = []) : int {
-
+    public function __insert(
+        string $table,
+        array $params,
+        array $rcp           = [],
+        array $rcp_operators = []
+    ) : int
+    {
         $successful = 0;
         $table = filter_var($table, FILTER_UNSAFE_RAW);
 
@@ -189,7 +203,7 @@ class Database extends Filter {
             unset($p);
 
             $table_params = implode(',', array_keys($params[0]));
-            $vals_str = '';
+            $insert_vals_str = '';
             $_seq = '';
             $vals = '';
             
@@ -210,11 +224,12 @@ class Database extends Filter {
                 $vals_first = substr($vals, 0, strpos($vals, ','));
                 $vals = ":{$_seq}{$vals_first}".strstr($vals, ',');
 
-                $vals_str .= "({$vals}),";
+                $insert_vals_str .= "({$vals}),";
             }
-
-            $vals_str = substr($vals_str, 0, strlen($vals_str) -1);
-            $vals_query = " VALUES {$vals_str}";
+            /**
+             * final chunk of 'VALUES({values})'
+             */
+            $insert_vals_query = substr($insert_vals_str, 0, strlen($insert_vals_str) -1);
         }
         /**
          * params is a single array => single insert
@@ -234,8 +249,10 @@ class Database extends Filter {
     
             $vals = str_replace(',',',:',$table_params);
             $vals = substr($vals, 0, 0). ':' . substr($vals, 0);
-
-            $vals_query = " VALUES({$vals})";
+            /**
+             * final chunk of 'VALUES({values})'
+             */
+            $insert_vals_query = "({$vals})";
         }
 
         /**
@@ -255,17 +272,17 @@ class Database extends Filter {
                 return 0;
             }
 
-            $existing_record = $this->__select($table, $rcp, $rcp_operators);
+            $existing_record = $this->__select($table, [], $rcp, $rcp_operators, [], 1);
 
             if( ! empty($existing_record)){
                 echo "insert-error: record already exists.\n";
-                //print_r($existing_record);
+                print_r($existing_record);
                 $this->clear_pdo_stmt();
                 return 0;
             }
         }
 
-        $sql = "INSERT INTO $table($table_params){$vals_query}";
+        $sql = "INSERT INTO {$table} ({$table_params}) VALUES {$insert_vals_query}";
         if($this->verbose){
             echo "QUERY: {$sql}\n";
         }
@@ -356,8 +373,14 @@ class Database extends Filter {
      * 
      * @return int => num of affected rows
      */
-    public function __update(string $table, array $params, array $wqp = [], array $wqp_operators = [], int $limit = 0) : int {
-
+    public function __update(
+        string $table,
+        array $params,
+        array $wqp           = [],
+        array $wqp_operators = [],
+        int $limit           = 0
+    ) : int
+    {
         if( ! empty($params) && ($params_opts = $this->__initialize_opts($params, $this->verbose)) === []){
             echo "update-error: init opts failed.\n";
             return 0;
@@ -479,8 +502,12 @@ class Database extends Filter {
      * 
      * @return int => num of affected rows
      */
-    public function __delete(string $table, array $params = [], array $operators = []) : int {
-
+    public function __delete(
+        string $table,
+        array $params    = [],
+        array $operators = []
+    ) : int
+    {
         $del_params = '';
 
         if( ! empty($params)){
