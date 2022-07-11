@@ -23,11 +23,14 @@ class Database extends Filter {
     private $pdo;
 
     /**
+     * => init db credentials
+     * => init db connection (new PDO instance)
      * 
-     * @return resource => new PDO instance
+     * @param verbose => verbose flag (provided as arg to the script(1))
+     * 
+     * @return void 
      */
     public function __construct(bool $verbose) {
-        $this->verbose = $verbose;
         self::$host = readenv('DB_HOST');
         self::$port = intval(readenv('DB_PORT'));
         self::$user = readenv('DB_USER');
@@ -37,10 +40,13 @@ class Database extends Filter {
         self::$dsn = 'mysql:host='.self::$host.';
                             dbname='.self::$database.';
                             charset='.self::$charset;
+
+        $this->verbose = $verbose;
         $this->init_db();
     }
 
     /**
+     * => init db connection (new PDO instance)
      * 
      */
     private function init_db() : void {
@@ -65,14 +71,14 @@ class Database extends Filter {
     }
 
     /**
-     * @param table  => table to select from
+     * @param table          => table to select from
      * @param select_columns => indexed array of columns-to-select 
-     * @param params => assoc. array of params to validate ('WHERE' params)
-     * @param operators => assoc. array of corresponding operators where (key = column)
-     * @param join   => array of JOIN params => default empty array
-     * @param limit  => limit query => default 0
+     * @param params         => assoc. array of params to validate ('WHERE' params)
+     * @param operators      => assoc. array of corresponding operators where (key = column)
+     * @param join           => array of JOIN params => default empty array
+     * @param limit          => limit query => default 0
      * 
-     * @return array => array of matching records
+     * @return array         => array of matching records
      */
     public function __select(
         string $table,
@@ -637,8 +643,6 @@ class Database extends Filter {
      * @return void
      */
     private function bind_params(array $params, array $params_opts) : void {
-        // $this->loop_bind_params($params, $params_opts);
-
         if(isset($params[0]) && is_array($params[0])){
             foreach ($params as $p_index => $p) {
                 $this->loop_bind_params(params: $p, params_opts: $params_opts);
