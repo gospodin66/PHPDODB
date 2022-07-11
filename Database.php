@@ -168,7 +168,7 @@ class Database extends Filter {
         $table = filter_var($table, FILTER_UNSAFE_RAW);
 
         /**
-         * if params contains arrays of params => multiple inserts
+         * if params is array of arrays of params => multiple inserts
          */
         if(isset($params[0]) && is_array($params[0])){            
             /**
@@ -216,7 +216,7 @@ class Database extends Filter {
             $vals_query = " VALUES {$vals_str}";
         }
         /**
-         * if params is a single array => single insert
+         * params is a single array => single insert
          */
         else {
 
@@ -276,37 +276,42 @@ class Database extends Filter {
         }
 
         try {
-            /* Begin a transaction, turning off autocommit */
+            /** Begin a transaction, turning off autocommit */
             $this->pdo->beginTransaction();
             $this->stmt = $this->pdo->prepare($sql);
             
             $_seq = '';
             $_po = [];
-            $qp = [];
+            $_qp = [];
 
             /**
-             * modify keys to diff params placeholders in prepared statements
+             * only if multiple inserts:
+             * => modify keys to diff params placeholders in prepared statements
              */
-            foreach ($params as $pk => $pv) {
-                $_seq .= '_';
-
-                foreach($pv as $pvk => $pvv){
-                    $qp[$pk][":{$_seq}{$pvk}"] = $params[$pk][$pvk];
+            if(isset($params[0]) && is_array($params[0])){
+                foreach($params as $pk => $pv){
+                    $_seq .= '_';
+    
+                    foreach($pv as $pvk => $pvv){
+                        $_qp[$pk][":{$_seq}{$pvk}"] = $params[$pk][$pvk];
+                    }
+    
+                    foreach($params_opts as $key => $opt){
+                        $_po[$pk][$key] = [
+                           'param' =>  ":{$_seq}{$opt['param']}",
+                           'pdo_param' => $opt['pdo_param'],
+                           'filter' => $opt['filter']
+                        ];
+                    }
+    
+                    unset($params[$pk]);
                 }
-
-                foreach($params_opts as $key => $opt){
-                    $_po[$pk][$key] = [
-                       'param' =>  ":{$_seq}{$opt['param']}",
-                       'pdo_param' => $opt['pdo_param'],
-                       'filter' => $opt['filter']
-                    ];
-                }
-
-                unset($params[$pk]);
-
+            } else {
+                $_po = $params_opts;
+                $_qp = $params;
             }
             
-            $this->bind_params($qp, $_po);
+            $this->bind_params($_qp, $_po);
 
             if($this->verbose){
                 echo "[+] EXECUTING QUERY..\n";
@@ -315,10 +320,10 @@ class Database extends Filter {
             $res = $this->stmt->execute();
 
             if($res){
-                $successful = (isset($qp[0]) && is_array($qp[0])) ? count($qp) : 1;
+                $successful = (isset($_qp[0]) && is_array($_qp[0])) ? count($_qp) : 1;
             }
             
-            /* Commit the changes */
+            /** Commit the changes */
             if( ! $this->pdo->commit()){
                 echo "Error on commiting insert transaction\nExecuting rollback";
                 $this->rollback_transaction();

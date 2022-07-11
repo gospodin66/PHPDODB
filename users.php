@@ -15,7 +15,7 @@ $insert_params = [
 ];
 
 $insert_multiple_params = [];
-for($i = 0; $i < 50; $i++){
+for($i = 0; $i < 10; $i++){
     $insert_params['username'] = $insert_params['username'].$i;
     $insert_multiple_params[] = $insert_params;
 }
