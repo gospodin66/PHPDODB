@@ -57,7 +57,14 @@ $delete_operators = [
     'ip' => '=',
     'port' => '>=',
 ]; 
-
+$select_columns = [
+    'clients.id',
+    'clients.user_id',
+    'clients.ip',
+    'clients.port',
+    'clients.proxy',
+    'clients.created_at',
+];
 $join = [
     [
         'type' => 'INNER',

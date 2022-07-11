@@ -5,7 +5,6 @@
     Autoloader::register_autoload();
 
 
-    
     $t = 'clients';
     // $t = 'users';
 
@@ -53,7 +52,7 @@
     if($database->verbose){
         echo "\nSELECT {$t}\n";
     }
-    $select = $database->__select($table=$join[0]['table2'],$where_params,$select_operators,$join);
+    $select = $database->__select($table=$join[0]['table2'],$select_columns=$select_columns,$params=$where_params,$operators=$select_operators,$join=$join,$limit=3);
     if($database->verbose){
         echo "time select(): ".(microtime(1) - $start_select)."[s]\n";
     }
@@ -65,7 +64,7 @@
     echo "insert: \n";
     var_dump($insert);
     echo "select: \n";
-    // print_r($select);
+    print_r($select);
     var_dump(count($select));
 
     $database->clear_pdo_stmt();

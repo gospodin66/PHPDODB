@@ -63,7 +63,12 @@ $delete_operators = [
     'username' => 'LIKE',
     // 'email' => '=',
 ]; 
-
+$select_columns = [
+    'users.id',
+    'users.username',
+    'users.email',
+    'users.created_at',
+];
 $join = [
     [
         'type' => 'INNER',

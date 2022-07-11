@@ -57,7 +57,6 @@ class Database extends Filter {
             $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);   
             $this->pdo->setAttribute(PDO::ATTR_STRINGIFY_FETCHES, true);   
         } catch (PDOException $e) {
-            
             echo "Database error [{$e->getCode()}]: connection failed\n".
                           "err msg: {$e->getMessage()} on line: {$e->getLine()}\n".
                           "stack trace: {$e->getTraceAsString()}\n\n";
@@ -73,7 +72,7 @@ class Database extends Filter {
      * 
      * @return array => array of matching records
      */
-    public function __select(string $table, array $params = [], array $operators = [], array $join = [], int $limit = 0) : array { 
+    public function __select(string $table, array $select_columns = [], array $params = [], array $operators = [], array $join = [], int $limit = 0) : array { 
         if( ! empty($params)){
             if(count($params) !== count($operators)){
                 echo "select-error: params len doesn't match operators len.\n";
@@ -115,7 +114,9 @@ class Database extends Filter {
         
         if(is_array($join) && !empty($join)){ $joinstr = $this->joins($join); }
 
-        $sql = "SELECT * FROM $table"
+        $sql = "SELECT "
+                .($select_columns !== [] ? implode(',', $select_columns) : '*')
+                ." FROM {$table}"
                 .($joinstr ?? '')
                 .( ! empty($select_params) ? " WHERE $select_params" : '')
                 .($limit > 1 ? " LIMIT {$limit}" : '');
