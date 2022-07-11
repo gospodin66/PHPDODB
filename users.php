@@ -14,8 +14,16 @@ $insert_params = [
     'updated_at' => date('Y-m-d H:i:s'),
 ];
 
+
+/**
+ * 
+ * AKO KOMBINIRAMO 2 ZNAKA: _ i -
+ * znaci da bi mogli imati 2^119 kombinacija???
+ * 
+ */
+
 $insert_multiple_params = [];
-for($i = 0; $i < 10; $i++){
+for($i = 0; $i < 119; $i++){
     $insert_params['username'] = $insert_params['username'].$i;
     $insert_multiple_params[] = $insert_params;
 }

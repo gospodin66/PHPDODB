@@ -66,7 +66,9 @@ class Database extends Filter {
 
     /**
      * @param table  => table to select from
+     * @param select_columns => indexed array of columns-to-select 
      * @param params => assoc. array of params to validate ('WHERE' params)
+     * @param operators => assoc. array of corresponding operators where (key = column)
      * @param join   => array of JOIN params => default empty array
      * @param limit  => limit query => default 0
      * 
@@ -74,11 +76,11 @@ class Database extends Filter {
      */
     public function __select(
         string $table,
-        array $select_columns = [],
-        array $params         = [],
-        array $operators      = [],
-        array $join           = [],
-        int $limit            = 0
+        ?array $select_columns = [],
+        ?array $params         = [],
+        ?array $operators      = [],
+        ?array $join           = [],
+        ?int $limit            = 0,
     ) : array
     {
         if( ! empty($params)){
@@ -141,7 +143,7 @@ class Database extends Filter {
 
         try {
             $this->stmt = $this->pdo->prepare($sql);
-            $this->bind_params($params=$params, $params_opts=($params_opts_copy ?? $params_opts ?? []));
+            $this->bind_params(params: $params, params_opts: ($params_opts_copy ?? $params_opts ?? []));
 
             if($this->verbose){
                 echo "[+] EXECUTING QUERY..\n";
@@ -166,17 +168,18 @@ class Database extends Filter {
     }
 
     /**
-     * @param table  => table to select from
-     * @param params => assoc. array of params to insert
-     * @param rcp    => assoc. array of ('record check params')
+     * @param table         => table to select from
+     * @param params        => assoc. array of params to insert
+     * @param rcp           => assoc. array of ('record check params')
+     * @param rcp_operators => assoc. array of corresponding operators where (key = column) 
      * 
-     * @return successful => number of successful inserts
+     * @return int          => number of successful inserts
      */
     public function __insert(
         string $table,
         array $params,
-        array $rcp           = [],
-        array $rcp_operators = []
+        ?array $rcp           = [],
+        ?array $rcp_operators = [],
     ) : int
     {
         $successful = 0;
@@ -272,7 +275,7 @@ class Database extends Filter {
                 return 0;
             }
 
-            $existing_record = $this->__select($table, [], $rcp, $rcp_operators, [], 1);
+            $existing_record = $this->__select(table: $table, params: $rcp, operators: $rcp_operators, limit: 1);
 
             if( ! empty($existing_record)){
                 echo "insert-error: record already exists.\n";
@@ -329,7 +332,7 @@ class Database extends Filter {
                 $_qp = $params;
             }
             
-            $this->bind_params($_qp, $_po);
+            $this->bind_params(params: $_qp, params_opts: $_po);
 
             if($this->verbose){
                 echo "[+] EXECUTING QUERY..\n";
@@ -366,19 +369,20 @@ class Database extends Filter {
     }
 
     /**
-     * @param table  => table to select from
-     * @param params => assoc. array of params to update
-     * @param wqp    => assoc. array of 'WHERE' query params
-     * @param limit  => limit query => default 0
+     * @param table         => table to select from
+     * @param params        => assoc. array of params to update
+     * @param wqp           => assoc. array of 'WHERE' query params
+     * @param wqp_operators => assoc. array of corresponding operators where (key = column)
+     * @param limit         => limit query => default 0
      * 
-     * @return int => num of affected rows
+     * @return int          => num of updated rows
      */
     public function __update(
         string $table,
         array $params,
-        array $wqp           = [],
-        array $wqp_operators = [],
-        int $limit           = 0
+        ?array $wqp           = [],
+        ?array $wqp_operators = [],
+        ?int $limit           = 0,
     ) : int
     {
         if( ! empty($params) && ($params_opts = $this->__initialize_opts($params, $this->verbose)) === []){
@@ -458,9 +462,9 @@ class Database extends Filter {
                     $wqopt['param'] = ':_'.$wqopt['param'];
                 }
                 unset($wqopt);
-                $this->bind_params(array_merge($params, $_wqp), array_merge($params_opts, $wqp_opts));
+                $this->bind_params(params: array_merge($params, $_wqp), params_opts: array_merge($params_opts, $wqp_opts));
             } else {
-                $this->bind_params($params, $params_opts);
+                $this->bind_params(params: $params, params_opts: $params_opts);
             }
             if($this->verbose){
                 echo "[+] EXECUTING QUERY..\n";
@@ -497,15 +501,16 @@ class Database extends Filter {
     }
 
     /**
-     * @param table  => table to select from
-     * @param params => assoc. array of params to update
+     * @param table     => table to select from
+     * @param params    => assoc. array of params to update
+     * @param operators => assoc. array of corresponding operators where (key = column)
      * 
-     * @return int => num of affected rows
+     * @return int      => num of deleted rows
      */
     public function __delete(
         string $table,
-        array $params    = [],
-        array $operators = []
+        ?array $params    = [],
+        ?array $operators = []
     ) : int
     {
         $del_params = '';
@@ -563,7 +568,7 @@ class Database extends Filter {
             $this->pdo->beginTransaction();
             $this->stmt = $this->pdo->prepare($sql);
             if( ! empty($params) && ! empty($params_opts)){
-                $this->bind_params($params, $params_opts);
+                $this->bind_params(params: $params, params_opts: $params_opts);
             }
             if($this->verbose){
                 echo "[+] EXECUTING QUERY..\n";
@@ -597,7 +602,7 @@ class Database extends Filter {
         $this->stmt = null;
         return $ret_rows;
     }
-
+    
     /**
      * @param join => assoc array of join params => type,operator,table1,param1,table2,param2
      * 
@@ -626,6 +631,8 @@ class Database extends Filter {
 
     /**
      * => bind values to parameters
+     * @param params => assoc. array params to bind (can be array of arrays)
+     * @param params_opts => assoc. array of corresponding opts & filters
      * 
      * @return void
      */
@@ -634,17 +641,19 @@ class Database extends Filter {
 
         if(isset($params[0]) && is_array($params[0])){
             foreach ($params as $p_index => $p) {
-                $this->loop_bind_params($p, $params_opts);
+                $this->loop_bind_params(params: $p, params_opts: $params_opts);
             }
             unset($p);
         }
         else {
-            $this->loop_bind_params($params, $params_opts);
+            $this->loop_bind_params(params: $params, params_opts: $params_opts);
         }
     }
 
     /**
      * => helper fnc
+     * @param params => assoc. array params to bind (can be array of arrays)
+     * @param params_opts => assoc. array of corresponding opts & filters
      * 
      * @return void
      */

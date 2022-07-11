@@ -26,10 +26,10 @@
         echo "\nUPDATE {$t}\n";
     }
     $update = $database->__update(
-        $t,
-        $update_params,
-        $where_params,
-        $update_operators
+        table: $t,
+        params: $update_params,
+        wqp: $where_params,
+        wqp_operators: $update_operators
     );
     if($database->verbose){
         echo "time update(): ".(microtime(1) - $start_update)."[s]\n";
@@ -40,9 +40,9 @@
         echo "\nDELETE {$t}\n";
     }
     $delete = $database->__delete(
-        $t,
-        $delete_params,
-        $delete_operators
+        table: $t,
+        params: $delete_params,
+        operators: $delete_operators
     );
     if($database->verbose){
         echo "time delete(): ".(microtime(1) - $start_delete)."[s]\n";
@@ -53,10 +53,10 @@
         echo "\nINSERT {$t}\n";
     }
     $insert = $database->__insert(
-        $t,
-        $insert_multiple_params,
-        $where_params,
-        $select_operators
+        table: $t,
+        params: $insert_multiple_params,
+        rcp: $where_params,
+        rcp_operators: $select_operators
     );
     if($database->verbose){
         echo "time insert(): ".(microtime(1) - $start_insert)."[s]\n";
@@ -67,12 +67,12 @@
         echo "\nSELECT {$t}\n";
     }
     $select = $database->__select(
-        $join[0]['table2'],
-        $select_columns,
-        $where_params,
-        $select_operators,
-        $join,
-        5,
+        table: $join[0]['table2'],
+        select_columns: $select_columns,
+        params: $where_params,
+        operators: $select_operators,
+        join: $join,
+        limit: 5,
     );
     if($database->verbose){
         echo "time select(): ".(microtime(1) - $start_select)."[s]\n";
